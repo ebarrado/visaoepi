@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Verificação de Capacete: Sistema Inteligente para Controle de Segurança no Canteiro de Obras</title>
+    <!-- Bootstrap CSS -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        body {
+            background-color: #f8f9fa;
+        }
+        .container {
+            max-width: 600px;
+            margin-top: 50px;
+        }
+        #cameraPreview {
+            width: 100%;
+            border-radius: 10px;
+            border: 2px solid #ddd;
+        }
+        .status-message {
+            width: 100%;
+            text-align: center;
+            padding: 15px;
+            font-size: 20px;
+            font-weight: bold;
+            color: white;
+            position: fixed;
+            bottom: 0;
+            left: 0;
+            transition: background-color 0.5s ease-in-out;
+        }
+        .success {
+            background-color: #28a745; /* Verde */
+        }
+        .danger {
+            background-color: #dc3545; /* Vermelho */
+        }
+    </style>
+</head>
+<body>
+    <div class="container text-center">
+        <h2 class="mb-4">Verificação de Capacete: Sistema Inteligente para Controle de Segurança no Canteiro de Obras</h2>
+        <video id="cameraPreview" autoplay playsinline></video>
+        <button id="captureButton" class="btn btn-primary mt-3">Capturar e Analisar</button>
+    </div>
+
+    <!-- Mensagem de status fixa no rodapé -->
+    <div id="statusMessage" class="status-message danger">Aguardando detecção...</div>
+
+    <script>
+        // Elementos do DOM
+        const video = document.getElementById('cameraPreview');
+        const captureButton = document.getElementById('captureButton');
+        const statusMessage = document.getElementById('statusMessage');
+
+        let capturedImage = null;
+
+        // Acessar a câmera
+        async function startCamera() {
+            try {
+                const stream = await navigator.mediaDevices.getUserMedia({ video: true });
+                video.srcObject = stream;
+            } catch (error) {
+                console.error("Erro ao acessar a câmera:", error);
+                alert("Não foi possível acessar a câmera. Verifique as permissões.");
+            }
+        }
+
+      // Função para capturar e analisar a imagem
+async function captureAndAnalyze() {
+    const canvas = document.createElement('canvas');
+    canvas.width = video.videoWidth;
+    canvas.height = video.videoHeight;
+    const context = canvas.getContext('2d');
+    context.drawImage(video, 0, 0, canvas.width, canvas.height);
+
+    // Converter a imagem capturada para uma URL de dados (data URL)
+    capturedImage = canvas.toDataURL('image/jpeg');
+
+    // Exibir mensagem de análise em andamento
+    statusMessage.textContent = "Analisando imagem...";
+    statusMessage.className = "status-message danger";
+
+    try {
+        const endpoint = "URL PREDICAO";
+        const apiKey = "KEY"; // Substitua pela sua chave de API
+
+        // Converter a URL de dados (data URL) em um Blob
+        const blob = await fetch(capturedImage).then(res => res.blob());
+
+        const response = await fetch(endpoint, {
+            method: 'POST',
+            headers: {
+                'Content-Type': 'application/octet-stream',
+                'Prediction-Key': apiKey
+            },
+            body: blob
+        });
+
+        if (!response.ok) {
+            throw new Error(`Erro na requisição: ${response.status} ${response.statusText}`);
+        }
+
+        const data = await response.json();
+        console.log("Resposta da API:", data);
+
+        // Verificar se a previsão indica que a pessoa está com capacete
+        const helmetPrediction = data.predictions.find(pred => pred.tagName.toLowerCase() === "com_capacete");
+        const noHelmetPrediction = data.predictions.find(pred => pred.tagName.toLowerCase() === "sem_capacete");
+
+        if (helmetPrediction && helmetPrediction.probability > 0.5) {
+            statusMessage.textContent = "Pessoa está com capacete. Pode entrar!";
+            statusMessage.className = "status-message success";
+        } else if (noHelmetPrediction && noHelmetPrediction.probability > 0.5) {
+            statusMessage.textContent = "Pessoa NÃO está com capacete. Não pode entrar!";
+            statusMessage.className = "status-message danger";
+        } else {
+            statusMessage.textContent = "Não foi possível determinar se a pessoa está com capacete.";
+            statusMessage.className = "status-message danger";
+        }
+    } catch (error) {
+        console.error("Erro ao analisar a imagem:", error);
+        statusMessage.textContent = "Erro ao analisar a imagem. Verifique o console para mais detalhes.";
+        statusMessage.className = "status-message danger";
+    }
+}
+        // Evento de clique no botão "Capturar e Analisar"
+        captureButton.addEventListener('click', captureAndAnalyze);
+
+        // Iniciar a câmera quando a página carregar
+        startCamera();
+    </script>
+</body>
+</html>
